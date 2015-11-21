@@ -1,0 +1,6 @@
+class MessageType():
+	GET_NEXT_NODE = 0
+	IS_SUCCESSOR = 1
+	IS_PREISESOR = 2
+	FIND_FILE = 3
+	
