@@ -5,14 +5,32 @@ from twisted.protocols.basic import FileSender
 import pickle
 import sys
 
-connection = None
-predecessors = []
-successors = []
-fingers = []
-NODE = None
+class ChordServer():
+    def __init__(self,host,target):
+        self.connections = []
+        self.predecessors = []
+        self.successors = []
+        self.fingers = []
+        self.host = host
+        self.target = target
+
+    def readInput(self):
+        while(True):
+            print ">"
+            cmd = raw_input()
+            for c in self.connections:
+                c.transport.write(cmd)
+
+    def run(self):
+        print("Initializing " + self.host.toString())
+        reactor.connectTCP(self.target.ip,self.target.port,ChordFactory(self.connections))#@UndefinedVariable
+        reactor.listenTCP(self.host.port,ChordFactory(self.connections))#@UndefinedVariable
+        reactor.callInThread(self.readInput)#@UndefinedVariable
+        reactor.run()#@UndefinedVariable
+        
 class Message():
     def __init__(self,node,messageType):
-        self.node = NODE
+        self.node = node
         self.type = messageType
     @staticmethod
     def serialize(msg):
@@ -52,22 +70,17 @@ class FileProtocal(FileSender):
         self.files = files
 
 class ChordFactory(Factory):
-    def __init__(self):
-        self.connections = []
+    def __init__(self,connections):
+        self.connections = connections
         
     def buildProtocol(self, addr):
-        return Chord(self)
+        return Chord(self.connections)
     
     def startedConnecting(self,connector):
         print("Attempting to connect!")
     def clientConnectionFailed(self,transport,reason):
         print("Connection Failed")
 
-def readInput():
-    while(True):
-        print ">"
-        cmd = raw_input()
-        connection.transport.write(cmd)
         
 if __name__ == '__main__':
     #Pass in args from 1 and on
@@ -76,12 +89,7 @@ if __name__ == '__main__':
     #FYI Node(ip,port,filePort,nodeId)
     #note * just unpacks the list
     #TODO replace nodeId with real id instead of port number
-    NODE = Node(*(args[0:3]+[args[1]]))    
+    host = Node(*(args[0:3]+[args[1]]))    
     target = Node(*(args[3:6]+[args[4]]))
-    
-    print("Initialized " + NODE.toString())
-    
-    reactor.connectTCP(target.ip,target.port,ChordFactory())#@UndefinedVariable
-    reactor.listenTCP(NODE.port,ChordFactory())#@UndefinedVariable
-    reactor.callInThread(readInput)#@UndefinedVariable
-    reactor.run()#@UndefinedVariable
+    server = ChordServer(host,target)
+    server.run()
