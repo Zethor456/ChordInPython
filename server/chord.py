@@ -2,85 +2,143 @@ from twisted.internet.protocol import Factory
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.protocols.basic import FileSender
-import pickle
+from message import Message, Find, Notify, Join, Hello
+from node import Node
 import sys
 
 class ChordServer():
     def __init__(self,host,target):
-        self.connections = []
-        self.predecessors = []
-        self.successors = []
+        self.connections = {}
+        self.predecessor = None
+        self.successor = None
         self.fingers = []
         self.host = host
+        self.me = host
         self.target = target
+        self.state = "ALONE"
 
     def readInput(self):
         while(True):
-            print ">"
-            cmd = raw_input()
-            for c in self.connections:
-                c.transport.write(cmd)
+            cmd = raw_input(">")
+            for c in self.connections.itervalues():
+                c.sendLine(Message(cmd).tobytes())
 
     def run(self):
         print("Initializing " + self.host.toString())
-        reactor.connectTCP(self.target.ip,self.target.port,ChordFactory(self.connections))#@UndefinedVariable
-        reactor.listenTCP(self.host.port,ChordFactory(self.connections))#@UndefinedVariable
+        reactor.connectTCP(self.target.ip,self.target.port,ChordFactory(self))#@UndefinedVariable
+        reactor.listenTCP(self.host.port,ChordFactory(self))#@UndefinedVariable
         reactor.callInThread(self.readInput)#@UndefinedVariable
         reactor.run()#@UndefinedVariable
         
-class Message():
-    def __init__(self,node,messageType):
-        self.node = node
-        self.type = messageType
-    @staticmethod
-    def serialize(msg):
-        return pickle.dumps(msg)
-    @staticmethod
-    def deserialize(msg):
-        return pickle.loads(msg)
+    def notify(self,node):
+        if self.predecessor == None:
+            self.setPred(node.node) 
+    
+    def create(self):
+        print "Initializing Chord at {0}".format(self.me.toString())
+        self.setState("CONNECTED")
+        self.predecessor = None
+        self.setSucc(self.me)
+    
+    def join(self,node):
+        self.predecessor = None
+        node.sendLine(Join(self.me).tobytes())
 
-class Node():
-    def __init__(self,ip,port,filePort,nodeId):
-        self.ip = ip
-        self.port = int(port)
-        self.filePort = int(filePort)
-        self.id = nodeId
-
-    def toString(self):
-        return "node {0.id} at {0.ip}:{0.port},{0.filePort}".format(self)
-
-
+    def add(self,node,connection):
+        self.connections[node]=connection
+    
+    def remove(self,connection):
+        toDelete = None
+        for n,c in self.connections.iteritems():
+            if c==connection:
+                toDelete = n
+        del self.connections[toDelete]
+    
+    def setState(self,state):
+        print "Setting state to "+state
+        self.state = state
+    
+    def setPred(self,pred):
+        print "Setting predecessor to {0}".format(pred.toString())
+        self.predecessor = pred
+    
+    def setSucc(self,succ):
+        print "Setting successor to {0}".format(succ.toString())
+        self.successor = succ
+    
+    def handleMsg(self,node,msg):
+        if isinstance(msg,Hello):
+            print "Received Hello"
+            node.node = msg.node
+            self.add(msg.node,node)
+            if self.state == "ALONE":
+                self.join(node)
+            return
+        
+        if self.state == "ALONE":
+            if isinstance(msg, Notify):
+                print "Received: {1} node {0}".format(msg.node.id,msg.msg)
+                self.setSucc(node.node)
+                self.setState("CONNECTED")
+            else:
+                print "Incorrect or Unknown Message Received: {0}".format(msg.msg)
+        elif self.state == "CONNECTED":
+            if isinstance(msg, Notify):
+                print "Received: {1} node {0}".format(msg.node.id,msg.msg)
+                self.notify(node.node)
+            elif isinstance(msg, Join):
+                #TODO Actually figure out who the successor is for node.node
+                node.sendLine(Notify(self.me).tobytes())
+                print "Received: {1} node {0}".format(msg.node.id,msg.msg)
+            elif isinstance(msg,Find):
+                print "Node {0} is searching for {1}".format(msg.node.id,msg.file)
+            else:
+                print "Incorrect or Unknown Message Received: {0}".format(msg.msg)
+        else:
+            print ("In bad state?!? Received: "+msg.msg)
 
 class Chord(LineReceiver):
-    def __init__(self, connections):
+    def __init__(self, factory):
         self.port = None
-        self.state = "CONNECTING"
-        self.connections = connections
+        self.factory = factory
+        self.node = None
 
     def connectionMade(self):
-        global connection
-        connection = self
-        self.sendLine("Hello!")
+        server = self.factory.server
+        #TODO not actually setting to rawMode?!?
+        self.setRawMode()
+        self.sendLine(Hello(server.me).tobytes())
         
     def dataReceived(self,data):
-        print("Received {0}".format(data))
+        msg = Message.deserialize(data)
+        self.factory.server.handleMsg(self,msg)
         
+    def rawDataReceived(self,data):
+        msg = Message.deserialize(data)
+        self.factory.server.handleMsg(self,msg)
+    
+    def connectionLost(self, reason):
+        self.factory.server.remove(self)
+    
 class FileProtocal(FileSender):
     def __init__(self,files):
         self.files = files
 
 class ChordFactory(Factory):
-    def __init__(self,connections):
-        self.connections = connections
+    def __init__(self,server):
+        self.server = server
         
     def buildProtocol(self, addr):
-        return Chord(self.connections)
+        return Chord(self)
     
     def startedConnecting(self,connector):
         print("Attempting to connect!")
+    
     def clientConnectionFailed(self,transport,reason):
-        print("Connection Failed")
-
+        print("A connection Failed")
+        self.server.create()
+    def clientConnectionLost(self,connector,reason):
+        print("Lost connection")
         
 if __name__ == '__main__':
     #Pass in args from 1 and on
