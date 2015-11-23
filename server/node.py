@@ -1,6 +1,6 @@
 
 class Node():
-    def __init__(self,ip,port,filePort,nodeId):
+    def __init__(self,ip,port,filePort,nodeId=None):
         self.ip = ip
         self.port = int(port)
         self.filePort = int(filePort)
