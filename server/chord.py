@@ -66,8 +66,13 @@ class ChordServer():
     #CHORD SPECIFIC FUNCTIONS#
     ##########################
     
+    ### need to be implemented(Guelor)
+    ##Send a file request message to the other server
+    ##
     def query(self,aFile):
         print "Looking for {0}!".format(aFile)
+        for c in self.connections.itervalues():
+                    c.sendLine(Find(self.me,aFile).tobytes())
         #TODO send the file query
     
     def notify(self,node):
@@ -85,7 +90,7 @@ class ChordServer():
         node.sendLine(Join(self.me).tobytes())
     
     
-    
+    #Bulk of the work need to be here note...
     def handleMsg(self,node,msg):
         #Initial handshake when connecting
         #Node id's are shared
