@@ -1,4 +1,3 @@
-
 class Node():
     def __init__(self,ip,port,filePort,nodeId=None):
         self.ip = ip
@@ -13,3 +12,21 @@ class Node():
         return hash((self.id))
     def __eq__(self,other):
         return (self.id)==(other.id)
+    
+    def address(self):
+        return "{0.ip}:{0.port}".format(self)
+    
+    def sortingSucc(self, comp):
+        if self.id > comp.id:
+            return int(self.id) + 1000
+        elif self.id == comp.id:
+            return 2000
+        else:   
+            return int(self.id)
+    def sortingPred(self, comp):
+        if self.id > comp.id:
+            return -(int(self.id) - 1000)
+        elif self.id == comp.id:
+            return - 1000
+        else:
+            return -int(self.id)
