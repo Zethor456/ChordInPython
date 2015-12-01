@@ -2,7 +2,7 @@ from twisted.internet.protocol import Factory
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.protocols.basic import FileSender
-from message import Message, Find, Notify, Join, Hello, Inform
+from message import Message, Find, Notify, Join, Inform
 from node import Node
 import sys
 import re
@@ -86,17 +86,27 @@ class ChordServer():
         node.sendLine(Inform(successor).tobytes())
  
     def find_successor(self,node,msg):
-        if(self.fingers.pos(self.me)<=self.fingers.pos(self.successor)):
+        #if there is only one node eg the pred==succ
+        #or the key is between this node and it's successor
+        #or the wrap around case when pred > succ
+        key = self.fingers.key(msg.target.address())
+        pred = self.fingers.pos(self.me)
+        succ = self.fingers.pos(self.successor)
+        if(pred==succ or (pred<key and key <succ and pred < succ) or (pred>succ and (key > pred or key < succ))):
+            #use the current connection to inform
             if (msg.target == msg.node):
                 self.add(msg.node, node)
                 node.sendLine(Inform(self.successor).tobytes())
+            #create a connection back to the new node
             elif(not msg.target in self.connections):
-                #f = lambda node: self.inform(node,self.successor)
                 reactor.connectTCP(msg.target.ip,msg.target.port,ChordFactory(self,Inform(self.successor)))#@UndefinedVariable
+            #or this node is already connected for some reason so use that
             else:
                 self.inform(self.connections[msg.target])
+            #update my successor to the new node
             self.setSucc(msg.target)
         else:
+            #forward the join request to my successor
             self.connections[self.successor].sendLine(Join(self.me,msg.target).tobytes())
             print("Forward Join msg to succesor")
     
@@ -115,19 +125,9 @@ class ChordServer():
         self.add(node,msg.node)
         self.setSucc(msg.node)
     
-    def handleMsg(self,node,msg):
-        #Initial handshake when connecting
-        #Node id's are shared
-        if isinstance(msg,Hello):
-            print "Received Hello"
-            node.node = msg.node
-            self.add(msg.node,node)
-            if self.state == "ALONE":
-                self.join(node)
-            return
-        
+    def handleMsg(self,node,msg):     
         #Once connected request to join is sent
-        #A Notify is returned with the new successor
+        #Eventually node is informed of it's new successor
         if self.state == "WAITING":
             if isinstance(msg, Inform):
                 print "Received: {1} from node {0}".format(msg.node.id,msg.msg)
@@ -143,8 +143,6 @@ class ChordServer():
                 print "Received: {1} from node {0}".format(msg.node.id,msg.msg)
                 self.notify(node,msg)
             elif isinstance(msg, Join):
-                #TODO Actually figure out who the successor is for msg.node
-                #node.sendLine(Notify(self.me).tobytes())
                 print "Received: {1} from node {2} for node {0}".format(msg.target.id,msg.msg,msg.node.id)
                 self.find_successor(node,msg)
             elif isinstance(msg,Find):
@@ -175,7 +173,6 @@ class Chord(LineReceiver):
                 self.sendLine(self.factory.callback.tobytes())
             else:
                 self.factory.callback(self)
-        #self.sendLine(Hello(server.me).tobytes())
         
     def dataReceived(self,data):
         msg = Message.deserialize(data)

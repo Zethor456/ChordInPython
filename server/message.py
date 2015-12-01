@@ -34,11 +34,6 @@ class Join(Message):
         self.node = node
         self.target = target
         
-class Hello(Message):
-    def __init__(self,node):
-        Message.__init__(self, "connecting!")
-        self.node = node
-        
 class FindSuccessor(Message):
     def __init__(self,node,target):
         Message.__init__(self, "find_my_successor")
