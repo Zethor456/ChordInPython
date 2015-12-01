@@ -2,17 +2,19 @@ from twisted.internet.protocol import Factory
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.protocols.basic import FileSender
-from message import Message, Find, Notify, Join, Hello
+from message import Message, Find, Notify, Join, Hello, Inform
 from node import Node
 import sys
 import re
+from hash import Ring
 
 class ChordServer():
     def __init__(self,host,target):
         self.connections = {} #is a dict mapping node to connection
+        self.nodes = {} #is a dict mapping connections to nodes
         self.predecessor = None
         self.successor = None
-        self.fingers = [] #TODO implement finger tables or some approx
+        self.fingers = Ring()
         self.host = host #The Node of the server
         self.me = host
         self.target = target #The initial server to connect to
@@ -42,13 +44,18 @@ class ChordServer():
     
     def add(self,node,connection):
         self.connections[node]=connection
+        self.nodes[connection]=node
         
     def remove(self,connection):
-        toDelete = None
-        for n,c in self.connections.iteritems():
-            if c==connection:
-                toDelete = n
-        del self.connections[toDelete]
+        #toDelete = None
+        #for n,c in self.connections.iteritems():
+        #    if c==connection:
+        #        toDelete = n
+        #del self.connections[toDelete]
+        if (connection in self.nodes):
+            toDelete = self.nodes[connection]
+            del self.connections[toDelete]
+            del self.nodes[connection]
         
         
     def setState(self,state):
@@ -70,21 +77,43 @@ class ChordServer():
         print "Looking for {0}!".format(aFile)
         #TODO send the file query
     
-    def notify(self,node):
+    def notify(self,node,msg):
         if self.predecessor == None:
-            self.setPred(node.node) 
+            self.setPred(msg.node) 
+    
+    def inform(self,node,successor):
+        print "informing node of successor"
+        node.sendLine(Inform(successor).tobytes())
+ 
+    def find_successor(self,node,msg):
+        if(self.fingers.pos(self.me)<=self.fingers.pos(self.successor)):
+            if (msg.target == msg.node):
+                self.add(msg.node, node)
+                node.sendLine(Inform(self.successor).tobytes())
+            elif(not msg.target in self.connections):
+                #f = lambda node: self.inform(node,self.successor)
+                reactor.connectTCP(msg.target.ip,msg.target.port,ChordFactory(self,Inform(self.successor)))#@UndefinedVariable
+            else:
+                self.inform(self.connections[msg.target])
+            self.setSucc(msg.target)
+        else:
+            self.connections[self.successor].sendLine(Join(self.me,msg.target).tobytes())
+            print("Forward Join msg to succesor")
     
     def create(self):
         print "Initializing Chord at {0}".format(self.me.toString())
+        self.fingers.add(self.me)   
         self.setState("CONNECTED")
         self.predecessor = None
         self.setSucc(self.me)
     
     def join(self,node):
         self.predecessor = None
-        node.sendLine(Join(self.me).tobytes())
+        node.sendLine(Join(self.me,self.me).tobytes())
     
-    
+    def informed(self,node,msg):
+        self.add(node,msg.node)
+        self.setSucc(msg.node)
     
     def handleMsg(self,node,msg):
         #Initial handshake when connecting
@@ -99,10 +128,10 @@ class ChordServer():
         
         #Once connected request to join is sent
         #A Notify is returned with the new successor
-        if self.state == "ALONE":
-            if isinstance(msg, Notify):
-                print "Received: {1} node {0}".format(msg.node.id,msg.msg)
-                self.setSucc(node.node)
+        if self.state == "WAITING":
+            if isinstance(msg, Inform):
+                print "Received: {1} from node {0}".format(msg.node.id,msg.msg)
+                self.informed(node,msg)
                 self.setState("CONNECTED")
             else:
                 print "Incorrect or Unknown Message Received: {0}".format(msg.msg)
@@ -111,12 +140,13 @@ class ChordServer():
         #The remaining Chord functionality should go in here
         elif self.state == "CONNECTED":
             if isinstance(msg, Notify):
-                print "Received: {1} node {0}".format(msg.node.id,msg.msg)
-                self.notify(node.node)
+                print "Received: {1} from node {0}".format(msg.node.id,msg.msg)
+                self.notify(node,msg)
             elif isinstance(msg, Join):
-                #TODO Actually figure out who the successor is for node.node
-                node.sendLine(Notify(self.me).tobytes())
-                print "Received: {1} node {0}".format(msg.node.id,msg.msg)
+                #TODO Actually figure out who the successor is for msg.node
+                #node.sendLine(Notify(self.me).tobytes())
+                print "Received: {1} from node {2} for node {0}".format(msg.target.id,msg.msg,msg.node.id)
+                self.find_successor(node,msg)
             elif isinstance(msg,Find):
                 #TODO File querying behaviour in here
                 #Server sends port for it's FileProtocol
@@ -137,7 +167,15 @@ class Chord(LineReceiver):
         server = self.factory.server
         #TODO not actually setting to rawMode?!?
         self.setRawMode()
-        self.sendLine(Hello(server.me).tobytes())
+        if (server.state == "ALONE"):
+            server.setState("WAITING")
+            server.join(self)
+        elif (self.factory.callback):
+            if(isinstance(self.factory.callback,Message)):
+                self.sendLine(self.factory.callback.tobytes())
+            else:
+                self.factory.callback(self)
+        #self.sendLine(Hello(server.me).tobytes())
         
     def dataReceived(self,data):
         msg = Message.deserialize(data)
@@ -155,14 +193,15 @@ class FileProtocal(FileSender):
         self.files = files
 
 class ChordFactory(Factory):
-    def __init__(self,server):
+    def __init__(self,server,callback=None):
         self.server = server
+        self.callback = callback
         
     def buildProtocol(self, addr):
         return Chord(self)
     
     def startedConnecting(self,connector):
-        print("Attempting to connect!")
+        print("Attempting to connect")
     
     def clientConnectionFailed(self,transport,reason):
         print("A connection Failed")
