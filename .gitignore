@@ -4,6 +4,8 @@
 *.pyc
 hash_ring*
 open-chord*.zip
+server/*.pyc
+gnutella.py
 
 # Windows image file caches
 Thumbs.db

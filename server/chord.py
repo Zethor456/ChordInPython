@@ -2,8 +2,9 @@ from twisted.internet.protocol import Factory
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.protocols.basic import FileSender
-from message import Message, Find, Notify, Join, Inform
+from message import Message, Find, Notify, Join, Inform, Ping, Pong
 from node import Node
+import time
 import sys
 import re
 from hash import Ring
@@ -12,8 +13,8 @@ class ChordServer():
     def __init__(self,host,target):
         self.connections = {} #is a dict mapping node to connection
         self.nodes = {} #is a dict mapping connections to nodes
-        self.predecessor = None
-        self.successor = None
+        self.predecessors = []
+        self.successors = []
         self.fingers = Ring()
         self.host = host #The Node of the server
         self.me = host
@@ -28,15 +29,36 @@ class ChordServer():
             match = pattern.match(cmd)
             if match:
                 self.query(match.group(1))
+            if cmd == "show":
+                print "Predecessor"
+                if self.predecessor != None:
+                    print self.predecessor.toString()
+                print "Successor"
+                for s in self.successors:
+                    print s.toString()
+                print "Connections"
+                
             else:
                 for c in self.connections.itervalues():
                     c.sendLine(Message(cmd).tobytes())
+                    
+    def stabilize(self):
+        while(True):
+            time.sleep(20)
+            
+            reactor.connectTCP(self.successors[0].ip,self.successors[0].port,ChordFactory(self,Ping(self.successors[0])))#@UndefinedVariable
 
+            
+            
+        
+        
+        
     def run(self):
         print("Initializing " + self.host.toString())
         reactor.connectTCP(self.target.ip,self.target.port,ChordFactory(self))#@UndefinedVariable
         reactor.listenTCP(self.host.port,ChordFactory(self))#@UndefinedVariable
         reactor.callInThread(self.readInput)#@UndefinedVariable
+        reactor.callInThread(self.stabilize)#@UndefinedVariable
         reactor.run()#@UndefinedVariable
     ##########################
     #SERVER UTILITY FUNCTIONS#
@@ -68,7 +90,16 @@ class ChordServer():
     
     def setSucc(self,succ):
         print "Setting successor to {0}".format(succ.toString())
-        self.successor = succ
+        self.successors.append(succ)
+        self.balenceSucc()
+    
+    def balenceSucc(self):
+        
+        self.successors.sort(key = lambda node : node.sortingSucc(self.me))
+        
+    
+    def balencePred(self): 
+        self.predecessors.sort(key = lambda node : node.sortingPred(self.me))
     ##########################
     #CHORD SPECIFIC FUNCTIONS#
     ##########################
@@ -91,15 +122,15 @@ class ChordServer():
         #or the wrap around case when pred > succ
         key = self.fingers.key(msg.target.address())
         pred = self.fingers.pos(self.me)
-        succ = self.fingers.pos(self.successor)
+        succ = self.fingers.pos(self.successors[0])
         if(pred==succ or (pred<key and key <succ and pred < succ) or (pred>succ and (key > pred or key < succ))):
             #use the current connection to inform
             if (msg.target == msg.node):
                 self.add(msg.node, node)
-                node.sendLine(Inform(self.successor).tobytes())
+                node.sendLine(Inform(self.successors[0]).tobytes())
             #create a connection back to the new node
             elif(not msg.target in self.connections):
-                reactor.connectTCP(msg.target.ip,msg.target.port,ChordFactory(self,Inform(self.successor)))#@UndefinedVariable
+                reactor.connectTCP(msg.target.ip,msg.target.port,ChordFactory(self,Inform(self.successors[0])))#@UndefinedVariable
             #or this node is already connected for some reason so use that
             else:
                 self.inform(self.connections[msg.target])
@@ -107,7 +138,7 @@ class ChordServer():
             self.setSucc(msg.target)
         else:
             #forward the join request to my successor
-            self.connections[self.successor].sendLine(Join(self.me,msg.target).tobytes())
+            self.connections[self.successors[0]].sendLine(Join(self.me,msg.target).tobytes())
             print("Forward Join msg to succesor")
     
     def create(self):
@@ -150,6 +181,10 @@ class ChordServer():
                 #Server sends port for it's FileProtocol
                 #to handle the actual data transfer
                 print "Node {0} is searching for {1}".format(msg.node.id,msg.file)
+            elif isinstance(msg,Ping):
+                node.sendLine(Pong(self.me).tobytes());
+            elif isinstance(msg, Pong):
+                print "Received: {1} from node {0}".format(msg.node.id,msg.msg)
             else:
                 print "Incorrect or Unknown Message Received: {0}".format(msg.msg)
         else:
