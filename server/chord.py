@@ -4,7 +4,6 @@ from twisted.internet import reactor
 from twisted.protocols.basic import FileSender
 from message import Message, Find, Notify, Join, Inform, Ping, Pong
 from node import Node
-import time
 import sys
 import re
 from hash import Ring
@@ -37,21 +36,19 @@ class ChordServer():
                 for s in self.successors:
                     print s.toString()
                 print "Connections"
+                for n in self.connections.keys():
+                    print n.toString()
                 
             else:
                 for c in self.connections.itervalues():
                     c.sendLine(Message(cmd).tobytes())
                     
     def stabilize(self):
-        while(True):
-            time.sleep(20)
-            
-            reactor.connectTCP(self.successors[0].ip,self.successors[0].port,ChordFactory(self,Ping(self.successors[0])))#@UndefinedVariable
+        print "Stabilizing"
+        if(self.successors != [] and self.successors[0] in self.connections):
+            self.connections[self.successors[0]].sendLine(Ping(self.me).tobytes())
+        reactor.callLater(20,self.stabilize)#@UndefinedVariable
 
-            
-            
-        
-        
         
     def run(self):
         print("Initializing " + self.host.toString())
@@ -65,6 +62,8 @@ class ChordServer():
     ##########################
     
     def add(self,node,connection):
+        if(not isinstance(node,Node) or not isinstance(connection, Chord)):
+            raise Exception()
         self.connections[node]=connection
         self.nodes[connection]=node
         
@@ -88,15 +87,30 @@ class ChordServer():
         print "Setting predecessor to {0}".format(pred.toString())
         self.predecessor = pred
     
+    #The successor list is sorted
+    #according to the hash values
+    #which unfortunately wraps around
+    #so I've defined a function Hash.ascend
+    #handle the math for the various cases
     def setSucc(self,succ):
         print "Setting successor to {0}".format(succ.toString())
-        self.successors.append(succ)
-        self.balenceSucc()
-    
-    def balenceSucc(self):
-        
-        self.successors.sort(key = lambda node : node.sortingSucc(self.me))
-        
+        #new successor
+        if (self.successors == []):
+            self.successors.append(succ)
+        #special case for started node.
+        elif (self.successors[0]==self.me):
+            self.successors[0]=succ
+        #new 1st pos succesor
+        elif (self.fingers.acsending(self.me, succ, self.successors[0])):
+            self.successors.insert(0,succ)
+        #2nd and on successors
+        else:
+            i = 1
+            for s in self.successors:
+                i = i + 1 
+                if (self.fingers.acsending(self.me, s, succ)):
+                    break
+            self.successors.insert(i,succ)    
     
     def balencePred(self): 
         self.predecessors.sort(key = lambda node : node.sortingPred(self.me))
@@ -153,7 +167,7 @@ class ChordServer():
         node.sendLine(Join(self.me,self.me).tobytes())
     
     def informed(self,node,msg):
-        self.add(node,msg.node)
+        self.add(msg.node,node)
         self.setSucc(msg.node)
     
     def handleMsg(self,node,msg):     
@@ -183,6 +197,7 @@ class ChordServer():
                 print "Node {0} is searching for {1}".format(msg.node.id,msg.file)
             elif isinstance(msg,Ping):
                 node.sendLine(Pong(self.me).tobytes());
+                print "Received: {1} from node {0}".format(msg.node.id,msg.msg)
             elif isinstance(msg, Pong):
                 print "Received: {1} from node {0}".format(msg.node.id,msg.msg)
             else:

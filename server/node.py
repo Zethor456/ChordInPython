@@ -3,6 +3,8 @@ class Node():
         self.ip = ip
         self.port = int(port)
         self.filePort = int(filePort)
+        #TODO node id's are somewhat redundant
+        #more for human readable identification
         self.id = nodeId
 
     def toString(self):

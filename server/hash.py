@@ -24,3 +24,14 @@ class Ring(object):
         m = md5.new()
         m.update(aString)
         return map(ord, m.digest())
+    
+    #Check to see if the three nodes are in
+    #ascending order according to the ring...
+    def acsending(self,o,n,m):
+        x = self.key(o.address())
+        a = self.key(n.address())
+        b = self.key(m.address())
+        if((b > a and a > x) or (a > x and x > b) or (x > b and b > a)):
+            return True
+        else:
+            return False
