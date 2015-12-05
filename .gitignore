@@ -1,3 +1,10 @@
+.project
+.py*
+.settings
+*.pyc
+hash_ring*
+open-chord*.zip
+
 # Windows image file caches
 Thumbs.db
 ehthumbs.db
