@@ -13,7 +13,10 @@ class Node():
     def __hash__(self):
         return hash((self.id))
     def __eq__(self,other):
-        return (self.id)==(other.id)
+        if(other==None):
+            return False
+        else:
+            return (self.id)==(other.id)
     
     def address(self):
         return "{0.ip}:{0.port}".format(self)

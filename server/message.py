@@ -44,8 +44,9 @@ class Ping(Message):
         self.node = node
 
 class Pong(Message):
-    def __init__(self,node):
+    def __init__(self,source,node=None):
         Message.__init__(self, "I_am_here")
+        self.source = source
         self.node = node
 
 class Join(Message):

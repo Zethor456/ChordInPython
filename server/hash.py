@@ -27,7 +27,7 @@ class Ring(object):
     
     #Check to see if the three nodes are in
     #ascending order according to the ring...
-    def acsending(self,o,n,m):
+    def ascending(self,o,n,m):
         x = self.key(o.address())
         a = self.key(n.address())
         b = self.key(m.address())
