@@ -1,4 +1,5 @@
-import md5
+##import md5
+import hashlib
 from bisect import bisect
 class Ring(object):
     
@@ -21,6 +22,7 @@ class Ring(object):
     #Use md5 to generate the hash   
     #and return it in integer form
     def key(self,aString):
-        m = md5.new()
+        #m = md5.new()
+        m = hashlib.md5()
         m.update(aString)
         return map(ord, m.digest())

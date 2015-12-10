@@ -8,6 +8,7 @@ import time
 import sys
 import re
 from hash import Ring
+import os
 
 class ChordServer():
     def __init__(self,host,target):
@@ -20,6 +21,7 @@ class ChordServer():
         self.me = host
         self.target = target #The initial server to connect to
         self.state = "ALONE"
+        self.listOfFiles = [] #A list of all the file from donwnload dir and shared
 
     def readInput(self):
         print "Request files with: get [file]"
@@ -41,6 +43,7 @@ class ChordServer():
             else:
                 for c in self.connections.itervalues():
                     c.sendLine(Message(cmd).tobytes())
+                   
                     
     def stabilize(self):
         while(True):
@@ -105,9 +108,35 @@ class ChordServer():
     ##########################
     
     def query(self,aFile):
+        fakeFile = "hello.text"
         print "Looking for {0}!".format(aFile)
-        #TODO send the file query
+        #TODO  send the file query(Guelor) check if the user has the file
+        if aFile == fakeFile:
+            print "200: Your request for {0} was found!".format(aFile)
+            self.getSharedDirect()
+        else:
+            print "404: Your request for {0} was not found!".format(aFile)
     
+    #List all the file names in the Shared directory
+    def getSharedDirect(self):
+        with open("output.txt", "w") as a:
+            for path, subdirs, files in os.walk(r'C:\Users\Guelor\My Documents\LiClipse Workspace\ChordInPython\Shared'):
+                for filename in files:
+                    f = os.path.join(filename)
+                    print filename +" :Was added to listOfFiles list"
+                    self.listOfFiles.append(filename)
+                    print len(self.listOfFiles)
+                    
+    #List all the file names in the Download directory                
+    def getDownloadDirect(self):
+        with open("output.txt", "w") as a:
+            for path, subdirs, files in os.walk(r'C:\Users\Guelor\My Documents\LiClipse Workspace\ChordInPython\Downloads'):
+                for filename in files:
+                    f = os.path.join(path, filename)
+                    print filename +" :Was added to listOfFiles list"
+                    self.listOfFiles.append(filename)
+                    print len(self.listOfFiles)
+        
     def notify(self,node,msg):
         if self.predecessor == None:
             self.setPred(msg.node) 
