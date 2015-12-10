@@ -14,7 +14,12 @@ class Message():
 
 class NotifySuc(Message):
     def __init__(self,node):
-        Message.__init__(self, "i_think_im_your_successor")
+        Message.__init__(self, "i_think_you_are_my_pred")
+        self.node = node
+
+class Inform(Message):
+    def __init__(self,node):
+        Message.__init__(self, "i_think_i_am_your_successor")
         self.node = node
         
 class NotifyPred(Message):
@@ -25,11 +30,6 @@ class NotifyPred(Message):
 class Notify(Message):
     def __init__(self,node):
         Message.__init__(self, "i_think_you_are_my_pred")
-        self.node = node
-
-class Inform(Message):
-    def __init__(self,node):
-        Message.__init__(self, "i_think_i_am_your_successor")
         self.node = node
         
 class Find(Message):
@@ -44,8 +44,9 @@ class Ping(Message):
         self.node = node
 
 class Pong(Message):
-    def __init__(self,node):
+    def __init__(self,source,node=None):
         Message.__init__(self, "I_am_here")
+        self.source = source
         self.node = node
 
 class Join(Message):
@@ -54,7 +55,8 @@ class Join(Message):
         self.node = node
         self.target = target
         
-class Hello(Message):
-    def __init__(self,node):
-        Message.__init__(self, "connecting!")
+class FindSuccessor(Message):
+    def __init__(self,node,target):
+        Message.__init__(self, "find_my_successor")
         self.node = node
+        self.target = target
