@@ -2,7 +2,7 @@ class Node():
     def __init__(self,ip,port,filePort,nodeId=None):
         self.ip = ip
         self.port = int(port)
-        self.filePort = int(filePort)
+        self.filePort = int(filePort) # for transfer file reactor.connectTCP(node.IP,node.fileport,FileFactory(self.me))
         #TODO node id's are somewhat redundant
         #more for human readable identification
         self.id = nodeId

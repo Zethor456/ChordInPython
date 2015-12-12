@@ -1,4 +1,4 @@
-from twisted.internet.protocol import Factory
+from twisted.internet.protocol import Factory, Protocol
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.protocols.basic import FileSender
@@ -20,7 +20,9 @@ class ChordServer():
         self.me = host
         self.target = target #The initial server to connect to
         self.state = "ALONE"
-        self.listOfFiles = [] #A list of all the file from donwnload dir and shared
+        self.path    = os.getcwd()
+        self.files   = [] #A list of all the file from donwnload dir and shared
+        
 
     def readInput(self):
         print "Request files with: get [file]"
@@ -59,6 +61,7 @@ class ChordServer():
         reactor.listenTCP(self.host.port,ChordFactory(self))#@UndefinedVariable
         reactor.callInThread(self.readInput)#@UndefinedVariable
         reactor.callInThread(self.stabilize)#@UndefinedVariable
+        reactor.listenTCP(self.host.filePort,FileFactory(self))
         reactor.run()#@UndefinedVariable
     ##########################
     #SERVER UTILITY FUNCTIONS#
@@ -127,35 +130,60 @@ class ChordServer():
     ##########################
     
     def query(self,aFile):
-        fakeFile = "hello.text"
+        newFind = Find(self.me, aFile)
+        self.connections[self.successors[0]].sendLine(newFind.tobytes())
+        self.getSharedDirect()
+        temp = []
         print "Looking for {0}!".format(aFile)
         #TODO  send the file query(Guelor) check if the user has the file
-        if aFile == fakeFile:
-            print "200: Your request for {0} was found!".format(aFile)
-            self.getSharedDirect()
-        else:
+        for i in self.files:
+            if aFile == i:
+                temp.append(i)
+                print "200: Your request for {0} was found!".format(aFile)
+        if not temp:
             print "404: Your request for {0} was not found!".format(aFile)
+        else:
+            for a in temp:
+                print a
     
 
     #List all the file names in the Shared directory
     def getSharedDirect(self):
-        with open("output.txt", "w") as a:
-            for path, subdirs, files in os.walk(r'C:\Users\Guelor\My Documents\LiClipse Workspace\ChordInPython\Shared'):
-                for filename in files:
-                    f = os.path.join(filename)
-                    print filename +" :Was added to listOfFiles list"
-                    self.listOfFiles.append(filename)
-                    print len(self.listOfFiles)
+        del self.files[:]
+        print len(self.files)
+        for root, dirs, filenames in os.walk(self.path):
+            for f in filenames:
+                temp = os.path.relpath(os.path.join(root,f),self.path)
+                if ("\Downloads" in temp or "/Downloads/" in temp):
+                    #print "yes \Download exist"
+                    self.files.append(os.path.join(f))
+                elif ("\Shared" in temp or "/Shared/" in temp):
+                    #print "yes /Shared exist"
+                    self.files.append(os.path.join(f))
+                else:
+                    print "Something went wrong!"
+        for i in self.files:
+            print i
+            
+    def fileExist(self, message): #TODO keep sending the file request along the chain #When the file is found connect to the node and send the file
+        self.getSharedDirect()
+        node = message.node
+        for f in self.files:
+            if ( message.file in f):
+                p=open("C:\\Users\\Guelor\\My Documents\\LiClipse Workspace\\Chord\\ChordInPython\\userspace\\Shared"+"\\"+message.file, "rb")
+                reactor.connectTCP(node.ip,node.filePort,FileFactory(self, self.sendFile, [p]))
+                print "200***: The requested file {0} was found!".format(message.file)
+    
+    def sendFile(self, connection, aFile):
+        connection.sender = FileSender()
+        deffered = connection.sender.beginFileTransfer(aFile, connection.transport, lambda x: x) #check me later
+        deffered.addCallback(lambda r: connection.transport.loseConnection())
+        
+            
+                
+            
+            
                     
-    #List all the file names in the Download directory                
-    def getDownloadDirect(self):
-        with open("output.txt", "w") as a:
-            for path, subdirs, files in os.walk(r'C:\Users\Guelor\My Documents\LiClipse Workspace\ChordInPython\Downloads'):
-                for filename in files:
-                    f = os.path.join(path, filename)
-                    print filename +" :Was added to listOfFiles list"
-                    self.listOfFiles.append(filename)
-                    print len(self.listOfFiles)
         
         
     def notify(self, node):
@@ -249,6 +277,7 @@ class ChordServer():
                 #TODO File querying behaviour in here
                 #Server sends port for it's FileProtocol
                 #to handle the actual data transfer
+                self.fileExist(msg) #TODO: added this by Guelor
                 print "Node {0} is searching for {1}".format(msg.node.id,msg.file)
             elif isinstance(msg,Ping):
                 print "Received: {1} from node {0}".format(msg.node.id,msg.msg)
@@ -304,10 +333,34 @@ class Chord(LineReceiver):
     def connectionLost(self, reason):
         self.factory.server.remove(self)
 
-class FileProtocal(FileSender):
-    def __init__(self,files):
-        self.files = files
-
+class FileProtocal(Protocol):
+    def __init__(self,factory):
+        self.factory = factory
+        self.rcv = None
+        
+    def connectionMade(self):
+        
+        if (self.factory.callback):
+            if(self.factory.args):
+                self.factory.callback(self,self.factory.args[0])
+            else:
+                self.factory.callback(self)
+        else:
+            #receiving proto
+            rcv = open("text.txt", "wb")
+            self.rcv = rcv
+            
+    
+    def connectionLost(self, reason):
+        print "connection lost"
+        if (not self.rcv == None):
+            self.rcv.close()
+    
+    def dataReceived(self, data):
+        self.rcv.write(data)
+        
+        
+                 
 class ChordFactory(Factory):
     def __init__(self,server,callback=None, args=[]):
         self.server = server
@@ -325,6 +378,25 @@ class ChordFactory(Factory):
         self.server.create()
     def clientConnectionLost(self,connector,reason):
         print("Lost connection")
+
+class FileFactory(Factory):
+    def __init__(self, server, callback=None, args=[]):
+        self.server   = server
+        self.callback = callback
+        self.args     = args
+        
+    def buildProtocol(self, addr):
+        return FileProtocal(self)
+    
+    def startedConnecting(self,connector):
+        print("Attempting to transfer file")
+    
+    def clientConnectionFailed(self,transport,reason):
+        print("Attempt to transfer file failed")
+        
+    def clientConnectionLost(self,connector,reason):
+        print("Lost connection")
+    
         
 if __name__ == '__main__':
     #Pass in args from 1 and on
