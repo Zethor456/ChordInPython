@@ -33,10 +33,11 @@ class Notify(Message):
         self.node = node
         
 class Find(Message):
-    def __init__(self,node,aFile):
+    def __init__(self,node,aFile,aIndex):
         Message.__init__(self, "file_request")
-        self.node = node
-        self.file = aFile
+        self.node   = node
+        self.file   = aFile
+        self.index  = aIndex
         
 class Ping(Message):
     def __init__(self,node):
