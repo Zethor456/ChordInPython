@@ -29,13 +29,18 @@ class ChordServer():
 
     def readInput(self):
         print "Request files with: get [file]"
-        pattern = re.compile("get\s+(.+)$")
+        print "Search available files with: ls [term]"
+        pattern    = re.compile("get\s+(.+)$")
+        patternTwo = re.compile("ls\s+(.+)$")
         while(True):
             cmd = raw_input()
             match = pattern.match(cmd)
+            matchLs = patternTwo.match(cmd)
             if match:
                 self.requestedFileName = match.group(1) # kind of hacked it for now...There's a better solution
                 self.query(self.me,match.group(1))
+            elif matchLs: #TODO: Need to traverse the tree and collect all available files that matches the search term
+                print "ls: "+ matchLs.group(1) 
             elif cmd == "show":
                 print "Node{0.id} has:".format(self.me)
                 print "Predecessor"
