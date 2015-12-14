@@ -22,11 +22,10 @@ class ChordServer():
         self.state = "ALONE"
         self.path    = os.getcwd()
         self.files   = [] #A list of all the file from donwnload dir and shared
-        self.sharedPath = "C:\Users\Guelor\My Documents\LiClipse Workspace\Chord\ChordInPython/userspace/Shared"
-        self.downloadPath = "C:\Users\Guelor\My Documents\LiClipse Workspace\Chord\ChordInPython/userspace/Downloads"
+        self.sharedPath = "../userspace/Shared"
+        self.downloadPath = "../userspace/Downloads"
         self.verbose = False
         self.requestedFileName =""
-        self.indexes = {} #is a dict mapping of nodes to array of file names
 
     def readInput(self):
         print "Request files with: get [file]"
@@ -39,10 +38,9 @@ class ChordServer():
             matchLs = patternTwo.match(cmd)
             if match:
                 self.requestedFileName = match.group(1) # kind of hacked it for now...There's a better solution
-                self.query(self.me,match.group(1), self.indexes)
+                self.query(self.me,match.group(1))
             elif matchLs: #TODO: Need to traverse the tree and collect all available files that matches the search term
-                print "ls: "+ matchLs.group(1)
-                self.query(self.me, matchLs.group(1), self.indexes) 
+                print "ls: "+ matchLs.group(1) 
             elif cmd == "show":
                 print "Node{0.id} has:".format(self.me)
                 print "Predecessor"
@@ -151,8 +149,8 @@ class ChordServer():
     #CHORD SPECIFIC FUNCTIONS#
     ##########################
     
-    def query(self,node,aFile, index):
-        newFind = Find(node, aFile, index)
+    def query(self,node,aFile):
+        newFind = Find(node, aFile)
         self.connections[self.successors[0]].sendLine(newFind.tobytes())
     
     def checkForFile(self,aFile):
@@ -164,13 +162,6 @@ class ChordServer():
                 temp.append(i)
                 print "200: Your request for {0} was found!".format(aFile)
                 return True
-            else:
-                searchedTerm = re.search(aFile, i)
-                if searchedTerm:
-                    print "There's a macth!"
-                else:
-                    print "There's no match!" 
-                    return False
         if not temp:
             print "404: Your request for {0} was not found!".format(aFile)
             return False
@@ -193,24 +184,8 @@ class ChordServer():
                 reactor.connectTCP(node.ip,node.filePort,FileFactory(self, self.sendFile, [p]))
                 print "200***: The requested file {0} was found!".format(message.file)
                 return
-            else:
-                print "200***: Searching for {0}!".format(message.file)
-                #TODO: Need to grab at least 9 files that this current node has plus the matched one
-                searchedTerm = re.search(message.file, f)
-                if searchedTerm:
-                    self.indexes[node] = self.files
-                    for key in  self.indexes:
-                        if True: # need a better condition, just testing for now
-                            self.query(node, message.file, self.indexes)
-                            print "filePort1: {}!".format(key.filePort)
-                            print "filePort1: {}!".format(node.filePort)
-                            print "Length: {}".format(len(self.indexes))
-                            #return
-                    print "Key Value: {0}".format(self.indexes[key])
-                    #print "key: %s , value: %s" % (key.filePort,  self.indexes[key])
-                    return
         #if the file isn't found, forward the request
-        self.query(node, message.file, self.indexes)
+        self.query(node, message.file)
         
     
     def sendFile(self, connection, aFile):
