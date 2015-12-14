@@ -25,6 +25,7 @@ class ChordServer():
         self.sharedPath = "../userspace/Shared"
         self.downloadPath = "../userspace/Downloads"
         self.verbose = False
+        self.requestedFileName =""
 
     def readInput(self):
         print "Request files with: get [file]"
@@ -33,6 +34,7 @@ class ChordServer():
             cmd = raw_input()
             match = pattern.match(cmd)
             if match:
+                self.requestedFileName = match.group(1) # kind of hacked it for now...There's a better solution
                 self.query(self.me,match.group(1))
             elif cmd == "show":
                 print "Node{0.id} has:".format(self.me)
@@ -371,7 +373,8 @@ class FileProtocal(Protocol):
             #arguably this should be sent before the actual data in a Message...
             #maybe change this to a Line Receiver and in connection Made
             #wait for a string to be sent
-            self.rcv = open(self.factory.server.downloadPath+"/"+"TODO_fixMe.txt", "wb")
+            #hacked  it for now... still need work
+            self.rcv = open(self.factory.server.downloadPath+"/"+ self.factory.server.requestedFileName, "wb")
 
     def connectionLost(self, reason):
         if (not self.rcv == None):

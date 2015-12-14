@@ -1,0 +1,24 @@
+!SESSION 2015-12-12 17:53:55.587 -----------------------------------------------
+eclipse.buildId=unknown
+java.version=1.8.0_25
+java.vendor=Oracle Corporation
+BootLoader constants: OS=win32, ARCH=x86_64, WS=win32, NL=en_CA
+Command-line arguments:  -os win32 -ws win32 -arch x86_64
+
+!ENTRY org.eclipse.egit.ui 2 0 2015-12-12 17:54:31.348
+!MESSAGE Warning: The environment variable HOME is not set. The following directory will be used to store the Git
+user global configuration and to define the default location to store repositories: 'C:\Users\Guelor'. If this is
+not correct please set the HOME environment variable and restart Eclipse. Otherwise Git for Windows and
+EGit might behave differently since they see different configuration options.
+This warning can be switched off on the Team > Git > Confirmations and Warnings preference page.
+
+!ENTRY org.python.pydev.shared_core 4 4 2015-12-12 17:54:33.072
+!MESSAGE C:\Program Files\Brainwy\LiClipse 2.4.0\plugins\com.brainwy.liclipse.editor_2.4.0.201510052047\etc\bjxz2pespzev6sp0iey3ll1m5 (The system cannot find the path specified)
+!STACK 0
+java.io.FileNotFoundException: C:\Program Files\Brainwy\LiClipse 2.4.0\plugins\com.brainwy.liclipse.editor_2.4.0.201510052047\etc\bjxz2pespzev6sp0iey3ll1m5 (The system cannot find the path specified)
+	at java.io.FileOutputStream.open(Native Method)
+	at java.io.FileOutputStream.<init>(FileOutputStream.java:213)
+	at java.io.FileOutputStream.<init>(FileOutputStream.java:162)
+	at org.python.pydev.shared_core.io.FileUtils.writeBytesToFile(FileUtils.java:140)
+	at org.python.pydev.shared_core.io.FileUtils.writeStrToFile(FileUtils.java:133)
+	at com.brainwy.liclipse.editor.lic.CheckRegistered.run(CheckRegistered.java:145)
